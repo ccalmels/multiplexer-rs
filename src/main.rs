@@ -49,7 +49,7 @@ fn main() {
                 ws.push(stream);
             }
             Err(e) => {
-                println!("connexion failed: {}", e);
+                println!("connexion fails: {}", e);
             }
         }
     }
