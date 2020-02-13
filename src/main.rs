@@ -5,49 +5,49 @@ use std::thread;
 use std::net::TcpListener;
 
 fn main() {
-    let mut buffer = [0; 4096];
     let writers = Arc::new(Mutex::new(vec![]));
+
+    let listener = TcpListener::bind("127.0.0.1:1234").expect("unable to bind");
 
     {
         let writers = writers.clone();
         thread::spawn(move || {
-            let listener = TcpListener::bind("127.0.0.1:1234").expect("unable to bind");
+            let mut buffer = [0; 4096];
 
-            for stream in listener.incoming() {
-                match stream {
-                    Ok(stream) => {
-                        println!("new client {:?}", stream);
+            loop {
+                let n = io::stdin().read(&mut buffer).unwrap();
 
-                        let mut ws = writers.lock().unwrap();
-                        ws.push(stream);
-                    }
-                    Err(e) => {
-                        println!("connexion failed: {}", e);
-                    }
+                if n > 0 {
+                    let mut ws = writers.lock().unwrap();
+
+                    ws.retain(|mut writer: &std::net::TcpStream| {
+                        let res = writer.write(&buffer[..n]);
+                        match res {
+                            Ok(_) => { true }
+                            Err(e) => {
+                                println!("unable to send data: {}", e);
+                                false
+                            }
+                        }
+                    });
+                } else {
+                    return;
                 }
             }
-
         });
     }
 
-    loop {
-        let n = io::stdin().read(&mut buffer).unwrap();
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                println!("new client {:?}", stream);
 
-        //println!("You typed: {:?}", &buffer[..n]);
-
-        {
-            let mut ws = writers.lock().unwrap();
-
-            ws.retain(|mut writer| {
-                let res = writer.write(&buffer[..n]);
-                match res {
-                    Ok(_) => { true }
-                    Err(e) => {
-                        println!("unable to send data: {}", e);
-                        false
-                    }
-                }
-            });
+                let mut ws = writers.lock().unwrap();
+                ws.push(stream);
+            }
+            Err(e) => {
+                println!("connexion failed: {}", e);
+            }
         }
     }
 }
