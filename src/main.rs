@@ -1,3 +1,4 @@
+use std::env;
 use std::io;
 use std::thread;
 use std::io::{Read, Write};
@@ -30,10 +31,16 @@ fn transfer_data(writers: Arc<Mutex<Vec<TcpStream>>>) {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let mut addr = "127.0.0.1:1234";
+
+    if args.len() > 1 {
+        addr = &args[1];
+    }
+
+    let listener = TcpListener::bind(addr).expect("unable to bind");
+
     let writers = Arc::new(Mutex::new(vec![]));
-
-    let listener = TcpListener::bind("127.0.0.1:1234").expect("unable to bind");
-
     {
         let writers = writers.clone();
 
