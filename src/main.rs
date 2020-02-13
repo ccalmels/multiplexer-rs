@@ -1,8 +1,33 @@
 use std::io;
+use std::thread;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
+
+fn transfer_data(writers: Arc<Mutex<Vec<TcpStream>>>) {
+    let mut buffer = [0; 4096];
+
+    loop {
+        let n = io::stdin().read(&mut buffer).unwrap();
+
+        if n > 0 {
+            let mut ws = writers.lock().unwrap();
+
+            ws.retain(|mut writer| {
+                let res = writer.write(&buffer[..n]);
+                match res {
+                    Ok(_) => { true }
+                    Err(e) => {
+                        println!("unable to send data: {}", e);
+                        false
+                    }
+                }
+            });
+        } else {
+            return;
+        }
+    }
+}
 
 fn main() {
     let writers = Arc::new(Mutex::new(vec![]));
@@ -11,30 +36,8 @@ fn main() {
 
     {
         let writers = writers.clone();
-        thread::spawn(move || {
-            let mut buffer = [0; 4096];
 
-            loop {
-                let n = io::stdin().read(&mut buffer).unwrap();
-
-                if n > 0 {
-                    let mut ws = writers.lock().unwrap();
-
-                    ws.retain(|mut writer: &std::net::TcpStream| {
-                        let res = writer.write(&buffer[..n]);
-                        match res {
-                            Ok(_) => { true }
-                            Err(e) => {
-                                println!("unable to send data: {}", e);
-                                false
-                            }
-                        }
-                    });
-                } else {
-                    return;
-                }
-            }
-        });
+        thread::spawn(move || transfer_data(writers));
     }
 
     for stream in listener.incoming() {
