@@ -1,15 +1,21 @@
 use std::env;
-use std::io;
 use std::thread;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::net::{TcpListener, TcpStream};
+use std::process::{Command, Stdio};
 
 fn transfer_data(writers: Arc<Mutex<Vec<TcpStream>>>) {
     let mut buffer = [0; 4096];
+    let child = Command::new("yes")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to spwan");
+
+    let mut stdout = child.stdout.expect("Unable to get output");
 
     loop {
-        let n = io::stdin().read(&mut buffer).unwrap();
+        let n = stdout.read(&mut buffer).unwrap();
 
         if n > 0 {
             let mut ws = writers.lock().unwrap();
