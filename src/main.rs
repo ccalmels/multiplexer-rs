@@ -2,10 +2,12 @@ use std::env;
 use std::thread;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
 
-fn transfer_data(writers: Arc<Mutex<Vec<TcpStream>>>) {
+fn transfer_data(writers: &Arc<Mutex<Vec<TcpStream>>>) {
     let mut buffer = [0; 4096];
     let child = Command::new("yes")
         .stdout(Stdio::piped())
@@ -30,13 +32,18 @@ fn transfer_data(writers: Arc<Mutex<Vec<TcpStream>>>) {
                     }
                 }
             });
+
+            if ws.len() == 0 {
+                return;
+            }
         } else {
             return;
         }
     }
 }
 
-fn accept_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>) {
+fn accept_client(tx: Sender<i32>, listener: TcpListener,
+                 writers: Arc<Mutex<Vec<TcpStream>>>) {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -44,6 +51,10 @@ fn accept_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>) {
 
                 let mut ws = writers.lock().unwrap();
                 ws.push(stream);
+
+                if ws.len() == 1 {
+                    tx.send(0).unwrap();
+                }
             }
             Err(e) => {
                 println!("connexion fails: {}", e);
@@ -63,11 +74,20 @@ fn main() {
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
     let writers = Arc::new(Mutex::new(vec![]));
+
+    let (tx, rx) = mpsc::channel();
+
     {
         let writers = writers.clone();
 
-        thread::spawn(move || accept_client(listener, writers));
+        thread::spawn(move || accept_client(tx, listener, writers));
     }
 
-    transfer_data(writers);
+    loop {
+        rx.recv().unwrap();
+
+        println!("launching command");
+
+        transfer_data(&writers);
+    }
 }
