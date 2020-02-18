@@ -12,7 +12,7 @@ fn transfer_data(writers: &Arc<Mutex<Vec<TcpStream>>>) {
     let child = Command::new("yes")
         .stdout(Stdio::piped())
         .spawn()
-        .expect("Failed to spwan");
+        .expect("Failed to spawn");
 
     let mut stdout = child.stdout.expect("Unable to get output");
 
