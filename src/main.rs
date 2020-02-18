@@ -66,8 +66,8 @@ fn main() {
     {
         let writers = writers.clone();
 
-        thread::spawn(move || transfer_data(writers));
+        thread::spawn(move || accept_client(listener, writers));
     }
 
-    accept_client(listener, writers);
+    transfer_data(writers);
 }
