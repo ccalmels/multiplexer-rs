@@ -7,17 +7,12 @@ use std::sync::mpsc::Sender;
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
 
-fn transfer_data(writers: &Arc<Mutex<Vec<TcpStream>>>) {
+fn transfer_data(input: &mut std::process::ChildStdout,
+                 writers: &Arc<Mutex<Vec<TcpStream>>>) {
     let mut buffer = [0; 4096];
-    let child = Command::new("yes")
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn");
-
-    let mut stdout = child.stdout.expect("Unable to get output");
 
     loop {
-        let n = stdout.read(&mut buffer).unwrap();
+        let n = input.read(&mut buffer).unwrap();
 
         if n > 0 {
             let mut ws = writers.lock().unwrap();
@@ -87,7 +82,13 @@ fn main() {
         rx.recv().unwrap();
 
         println!("launching command");
+        let child = Command::new("yes")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn");
 
-        transfer_data(&writers);
+        let mut stdout = child.stdout.expect("Unable to get output");
+
+        transfer_data(&mut stdout, &writers);
     }
 }
