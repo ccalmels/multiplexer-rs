@@ -36,6 +36,22 @@ fn transfer_data(writers: Arc<Mutex<Vec<TcpStream>>>) {
     }
 }
 
+fn accept_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>) {
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                println!("new client {:?}", stream);
+
+                let mut ws = writers.lock().unwrap();
+                ws.push(stream);
+            }
+            Err(e) => {
+                println!("connexion fails: {}", e);
+            }
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut addr = "127.0.0.1:1234";
@@ -53,17 +69,5 @@ fn main() {
         thread::spawn(move || transfer_data(writers));
     }
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("new client {:?}", stream);
-
-                let mut ws = writers.lock().unwrap();
-                ws.push(stream);
-            }
-            Err(e) => {
-                println!("connexion fails: {}", e);
-            }
-        }
-    }
+    accept_client(listener, writers);
 }
