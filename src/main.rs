@@ -22,7 +22,7 @@ fn transfer_data(input: &mut impl Read,
                 match res {
                     Ok(_) => { true }
                     Err(e) => {
-                        println!("unable to send data: {}", e);
+                        eprintln!("unable to send data: {}", e);
                         false
                     }
                 }
@@ -52,7 +52,7 @@ fn accept_client(tx: Sender<i32>, listener: TcpListener,
                 }
             }
             Err(e) => {
-                println!("connexion fails: {}", e);
+                eprintln!("connexion fails: {}", e);
             }
         }
     }
