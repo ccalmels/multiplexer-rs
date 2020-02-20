@@ -7,7 +7,7 @@ use std::sync::mpsc::Sender;
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
 
-fn transfer_data(input: &mut std::process::ChildStdout,
+fn transfer_data(input: &mut impl Read,
                  writers: &Arc<Mutex<Vec<TcpStream>>>) {
     let mut buffer = [0; 4096];
 
@@ -58,13 +58,37 @@ fn accept_client(tx: Sender<i32>, listener: TcpListener,
     }
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let mut addr = "127.0.0.1:1234";
+fn get_input(args: &Vec<String>) -> Box<dyn Read> {
+    if args.len() > 0 {
+        let cmd = &args[0];
+        let cmd_args = if args.len() > 1 {
+            &args[1..]
+        } else {
+            &[]
+        };
 
-    if args.len() > 1 {
-        addr = &args[1];
+        let child = Command::new(cmd)
+            .args(cmd_args)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn");
+
+        Box::new(child.stdout.expect("Unable to get output"))
+    } else {
+        Box::new(std::io::stdin())
     }
+}
+
+fn main() {
+    let mut args: Vec<String> = env::args().collect();
+
+    if args.len() < 2 {
+        eprintln!("usage");
+        return;
+    }
+
+    args.remove(0);
+    let addr = args.remove(0);
 
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
@@ -81,14 +105,6 @@ fn main() {
     loop {
         rx.recv().unwrap();
 
-        println!("launching command");
-        let child = Command::new("yes")
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to spawn");
-
-        let mut stdout = child.stdout.expect("Unable to get output");
-
-        transfer_data(&mut stdout, &writers);
+        transfer_data(&mut get_input(&args), &writers);
     }
 }
