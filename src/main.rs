@@ -31,8 +31,6 @@ fn transfer_data(input: &mut impl Read,
             if ws.len() == 0 {
                 return;
             }
-        } else {
-            return;
         }
     }
 }
