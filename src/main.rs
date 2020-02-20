@@ -8,28 +8,35 @@ use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
 
 fn transfer_data(input: &mut impl Read,
-                 writers: &Arc<Mutex<Vec<TcpStream>>>) {
+                 writers: &Arc<Mutex<Vec<TcpStream>>>) -> bool {
     let mut buffer = [0; 4096];
 
     loop {
-        let n = input.read(&mut buffer).unwrap();
+        match input.read(&mut buffer) {
+            Ok(0) => {
+                return false;
+            }
+            Ok(n) => {
+                let mut ws = writers.lock().unwrap();
 
-        if n > 0 {
-            let mut ws = writers.lock().unwrap();
-
-            ws.retain(|mut writer| {
-                let res = writer.write(&buffer[..n]);
-                match res {
-                    Ok(_) => { true }
-                    Err(e) => {
-                        eprintln!("unable to send data: {}", e);
-                        false
+                ws.retain(|mut writer| {
+                    let res = writer.write(&buffer[..n]);
+                    match res {
+                        Ok(_) => { true }
+                        Err(e) => {
+                            eprintln!("unable to send data: {}", e);
+                            false
+                        }
                     }
-                }
-            });
+                });
 
-            if ws.len() == 0 {
-                return;
+                if ws.len() == 0 {
+                    return true;
+                }
+            }
+            Err(e) => {
+                eprintln!("read fails: {}", e);
+                return false;
             }
         }
     }
@@ -98,6 +105,8 @@ fn main() {
 
         let mut stdout = child.stdout.expect("Unable to get output");
 
-        transfer_data(&mut stdout, &writers);
+        if !transfer_data(&mut stdout, &writers) {
+            return;
+        }
     }
 }
