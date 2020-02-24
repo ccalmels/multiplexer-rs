@@ -1,6 +1,6 @@
 use std::env;
 use std::thread;
-use std::io::{Read, Write};
+use std::io::{Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
@@ -23,6 +23,10 @@ fn transfer_data(input: &mut impl Read,
                     let res = writer.write(&buffer[..n]);
                     match res {
                         Ok(_) => { true }
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                            eprintln!("would block");
+                            true
+                        }
                         Err(e) => {
                             eprintln!("unable to send data: {}", e);
                             false
@@ -48,6 +52,9 @@ fn accept_client(tx: Sender<i32>, listener: TcpListener,
         match stream {
             Ok(stream) => {
                 println!("new client {:?}", stream);
+
+                stream.set_nonblocking(true)
+                    .expect("set_nonblocking fails");
 
                 let mut ws = writers.lock().unwrap();
                 ws.push(stream);
