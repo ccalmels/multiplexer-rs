@@ -49,13 +49,13 @@ fn transfer_data(input: &mut impl Read,
 }
 
 fn accept_client(tx: Sender<i32>, listener: TcpListener,
-                 writers: Arc<Mutex<Vec<TcpStream>>>) {
+                 writers: Arc<Mutex<Vec<TcpStream>>>, block: bool) {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 println!("new client {:?}", stream);
 
-                stream.set_nonblocking(true)
+                stream.set_nonblocking(!block)
                     .expect("set_nonblocking fails");
 
                 let mut ws = writers.lock().unwrap();
@@ -117,7 +117,7 @@ fn main() {
     {
         let writers = writers.clone();
 
-        thread::spawn(move || accept_client(tx, listener, writers));
+        thread::spawn(move || accept_client(tx, listener, writers, block));
     }
 
     loop {
