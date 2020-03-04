@@ -5,3 +5,4 @@ authors = ["Clement Calmels <clement.calmels@enac.fr>"]
 edition = "2018"
 
 [dependencies]
+clap = "~2.27.0"

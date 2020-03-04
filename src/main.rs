@@ -1,4 +1,6 @@
-use std::env;
+extern crate clap;
+
+use clap::{Arg, App, AppSettings, SubCommand};
 use std::thread;
 use std::io::{Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -70,26 +72,43 @@ fn accept_client(tx: Sender<i32>, listener: TcpListener,
     }
 }
 
-fn usage(basename: &str) {
-    eprintln!("usage: {} <listen_address> <command> [args...]", basename);
-}
-
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let matches = App::new("IO multiplexer")
+        .version("0.1")
+        .author("Clément Calmels <clement.calmels@free.fr>")
+        .setting(AppSettings::AllowExternalSubcommands)
+//        .setting(AppSettings::SubcommandRequired)
+        .arg(Arg::with_name("listen")
+             .short("l")
+             .long("listen")
+             .takes_value(true)
+             .value_name("ADDRESS:PORT")
+             .help("help listen"))
+        .arg(Arg::with_name("block")
+             .short("b")
+             .long("block")
+             .help("help block"))
+        .subcommand(SubCommand::with_name("-")
+                    .about("read from stdin"))
+        .get_matches();
 
-    if args.len() < 3 {
-        return usage(&args[0]);
-    }
+    let addr = matches.value_of("listen").unwrap_or("localhost:1234");
+    let block = matches.is_present("block");
 
-    let addr = &args[1];
-    let cmd = &args[2];
-    let cmd_args = if args.len() > 3 {
-        &args[3..]
-    } else {
-        &[]
-    };
+    let (cmd, cmd_args) =
+        match matches.subcommand() {
+            (_, None) => {
+                ("", Vec::new())
+            },
+            (cmd, Some(ext_m)) => {
+                (cmd, match ext_m.values_of("") {
+                    None => { Vec::new() }
+                    Some(iterator) => { iterator.collect() }
+                })
+            }
+        };
 
-    let listener = TcpListener::bind(addr).expect("unable to bind");
+    let listener = TcpListener::bind(&addr).expect("unable to bind");
 
     let writers = Arc::new(Mutex::new(vec![]));
 
@@ -104,8 +123,8 @@ fn main() {
     loop {
         rx.recv().unwrap();
 
-        let child = Command::new(cmd)
-            .args(cmd_args)
+        let child = Command::new(&cmd)
+            .args(&cmd_args)
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to spawn");
