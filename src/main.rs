@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{Arg, App, AppSettings, SubCommand};
+use clap::{Arg, App};
 use std::thread;
 use std::io::{Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -78,8 +78,6 @@ fn main() {
     let matches = App::new("IO multiplexer")
         .version("0.1")
         .author("Clément Calmels <clement.calmels@free.fr>")
-        .setting(AppSettings::AllowExternalSubcommands)
-//        .setting(AppSettings::SubcommandRequired)
         .arg(Arg::with_name("listen")
              .short("l")
              .long("listen")
@@ -90,25 +88,18 @@ fn main() {
              .short("b")
              .long("block")
              .help("help block"))
-        .subcommand(SubCommand::with_name("-")
-                    .about("read from stdin"))
+        .arg(Arg::with_name("cmd")
+             .multiple(true)
+             .required(true)
+             .help("commands to run"))
         .get_matches();
 
     let addr = matches.value_of("listen").unwrap_or("localhost:1234");
     let block = matches.is_present("block");
 
-    let (cmd, cmd_args) =
-        match matches.subcommand() {
-            (_, None) => {
-                ("", Vec::new())
-            },
-            (cmd, Some(ext_m)) => {
-                (cmd, match ext_m.values_of("") {
-                    None => { Vec::new() }
-                    Some(iterator) => { iterator.collect() }
-                })
-            }
-        };
+    let mut trail: Vec<&str> = matches.values_of("cmd").unwrap().collect();
+    let cmd = trail.remove(0);
+    let cmd_args = trail;
 
     let listener = TcpListener::bind(&addr).expect("unable to bind");
 
