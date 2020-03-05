@@ -48,7 +48,7 @@ fn transfer_data(input: &mut impl Read,
     }
 }
 
-fn accept_client(tx: Sender<i32>, listener: TcpListener,
+fn accept_client(tx: Option<Sender<i32>>, listener: TcpListener,
                  writers: Arc<Mutex<Vec<TcpStream>>>, block: bool) {
     for stream in listener.incoming() {
         match stream {
@@ -62,7 +62,9 @@ fn accept_client(tx: Sender<i32>, listener: TcpListener,
                 ws.push(stream);
 
                 if ws.len() == 1 {
-                    tx.send(0).unwrap();
+                    if let Some(sender) = &tx {
+                        sender.send(0).unwrap();
+                    }
                 }
             }
             Err(e) => {
@@ -117,7 +119,7 @@ fn main() {
     {
         let writers = writers.clone();
 
-        thread::spawn(move || accept_client(tx, listener, writers, block));
+        thread::spawn(move || accept_client(Some(tx), listener, writers, block));
     }
 
     loop {
