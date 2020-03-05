@@ -96,10 +96,7 @@ fn main() {
 
     let addr = matches.value_of("listen").unwrap_or("localhost:1234");
     let block = matches.is_present("block");
-
-    let mut trail: Vec<&str> = matches.values_of("cmd").unwrap().collect();
-    let cmd = trail.remove(0);
-    let cmd_args = trail;
+    let cmd: Vec<&str> = matches.values_of("cmd").unwrap().collect();
 
     let listener = TcpListener::bind(&addr).expect("unable to bind");
 
@@ -116,8 +113,8 @@ fn main() {
     loop {
         rx.recv().unwrap();
 
-        let child = Command::new(&cmd)
-            .args(&cmd_args)
+        let child = Command::new(&cmd[0])
+            .args(&cmd[1..])
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to spawn");
