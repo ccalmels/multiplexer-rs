@@ -90,39 +90,55 @@ fn main() {
              .help("help block"))
         .arg(Arg::with_name("cmd")
              .multiple(true)
-             .required(true)
              .help("command to run"))
         .get_matches();
 
     let addr = matches.value_of("listen").unwrap_or("localhost:1234");
     let block = matches.is_present("block");
-    let cmd: Vec<&str> = matches.values_of("cmd").unwrap().collect();
+    let cmd: Vec<&str> = match matches.values_of("cmd") {
+        Some(iterator) => { iterator.collect() },
+        None => { Vec::new() }
+    };
 
     let listener = TcpListener::bind(&addr).expect("unable to bind");
 
     let writers = Arc::new(Mutex::new(vec![]));
 
-    let (tx, rx) = mpsc::channel();
+    if cmd.len() == 0 {
+        {
+            let writers = writers.clone();
 
-    {
-        let writers = writers.clone();
+            thread::spawn(move || accept_client(None, listener, writers, block));
+        }
 
-        thread::spawn(move || accept_client(Some(tx), listener, writers, block));
-    }
+        loop {
+            if !transfer_data(&mut std::io::stdin(), &writers) {
+                return;
+            }
+        }
+    } else {
+        let (tx, rx) = mpsc::channel();
 
-    loop {
-        rx.recv().unwrap();
+        {
+            let writers = writers.clone();
 
-        let child = Command::new(&cmd[0])
-            .args(&cmd[1..])
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to spawn");
+            thread::spawn(move || accept_client(Some(tx), listener, writers, block));
+        }
 
-        let mut stdout = child.stdout.expect("Unable to get output");
+        loop {
+            rx.recv().unwrap();
 
-        if !transfer_data(&mut stdout, &writers) {
-            return;
+            let child = Command::new(&cmd[0])
+                .args(&cmd[1..])
+                .stdout(Stdio::piped())
+                .spawn()
+                .expect("Failed to spawn");
+
+            let mut stdout = child.stdout.expect("Unable to get output");
+
+            if !transfer_data(&mut stdout, &writers) {
+                return;
+            }
         }
     }
 }
