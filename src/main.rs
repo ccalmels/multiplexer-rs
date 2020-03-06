@@ -125,14 +125,14 @@ fn main() {
             thread::spawn(move || accept_client(listener, writers, Some(tx), block));
         }
 
+        let mut command = Command::new(&cmd[0]);
+
+        command.args(&cmd[1..]).stdout(Stdio::piped());
+
         loop {
             rx.recv().unwrap();
 
-            let child = Command::new(&cmd[0])
-                .args(&cmd[1..])
-                .stdout(Stdio::piped())
-                .spawn()
-                .expect("Failed to spawn");
+            let child = command.spawn().expect("Failed to spawn");
 
             let mut stdout = child.stdout.expect("Unable to get output");
 
