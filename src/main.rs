@@ -24,9 +24,9 @@ fn main() {
 
     let addr = matches.value_of("listen").unwrap_or("localhost:1234");
     let block = matches.is_present("block");
-    let cmd: Vec<&str> = match matches.values_of("cmd") {
-        Some(iterator) => { iterator.collect() },
-        None => { Vec::new() }
+    let cmd: Option<Vec<&str>> = match matches.values_of("cmd") {
+        Some(iterator) => { Some(iterator.collect()) },
+        None => { None }
     };
 
     run(addr, block, cmd);

@@ -103,19 +103,20 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
     }
 }
 
-pub fn run(addr: &str, block: bool, cmd: Vec<&str>)
+pub fn run(addr: &str, block: bool, cmd: Option<Vec<&str>>)
 {
     let listener = TcpListener::bind(&addr).expect("unable to bind");
 
     let writers = Arc::new(Mutex::new(vec![]));
 
-    if cmd.len() == 0 {
-        return multiplex_stdin(listener, writers, block);
-    } else {
-        let mut command = Command::new(&cmd[0]);
+    match cmd {
+        None => { multiplex_stdin(listener, writers, block); },
+        Some(cmd) => {
+            let mut command = Command::new(&cmd[0]);
 
-        command.args(&cmd[1..]).stdout(Stdio::piped());
+            command.args(&cmd[1..]).stdout(Stdio::piped());
 
-        return multiplex_command(listener, writers, block, command);
+            multiplex_command(listener, writers, block, command);
+        },
     }
 }
