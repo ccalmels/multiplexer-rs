@@ -74,6 +74,59 @@ fn accept_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
     }
 }
 
+fn multiplex_stdin(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
+                   block: bool)
+{
+    {
+        let writers = writers.clone();
+
+        thread::spawn(move || accept_client(listener, writers, None, block));
+    }
+
+    while transfer_data(&mut std::io::stdin(), &writers) {}
+}
+
+fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
+                     block: bool, mut command: Command)
+{
+        let (tx, rx) = mpsc::channel();
+
+        {
+            let writers = writers.clone();
+
+            thread::spawn(move || accept_client(listener, writers, Some(tx), block));
+        }
+
+        loop {
+            rx.recv().unwrap();
+
+            let child = command.spawn().expect("Failed to spawn");
+
+            let mut stdout = child.stdout.expect("Unable to get output");
+
+            if !transfer_data(&mut stdout, &writers) {
+                return;
+            }
+        }
+}
+
+fn run(addr: &str, block: bool, cmd: Vec<&str>)
+{
+    let listener = TcpListener::bind(&addr).expect("unable to bind");
+
+    let writers = Arc::new(Mutex::new(vec![]));
+
+    if cmd.len() == 0 {
+        return multiplex_stdin(listener, writers, block);
+    } else {
+        let mut command = Command::new(&cmd[0]);
+
+        command.args(&cmd[1..]).stdout(Stdio::piped());
+
+        return multiplex_command(listener, writers, block, command);
+    }
+}
+
 fn main() {
     let matches = App::new("IO multiplexer")
         .version("0.1")
@@ -100,45 +153,5 @@ fn main() {
         None => { Vec::new() }
     };
 
-    let listener = TcpListener::bind(&addr).expect("unable to bind");
-
-    let writers = Arc::new(Mutex::new(vec![]));
-
-    if cmd.len() == 0 {
-        {
-            let writers = writers.clone();
-
-            thread::spawn(move || accept_client(listener, writers, None, block));
-        }
-
-        loop {
-            if !transfer_data(&mut std::io::stdin(), &writers) {
-                return;
-            }
-        }
-    } else {
-        let (tx, rx) = mpsc::channel();
-
-        {
-            let writers = writers.clone();
-
-            thread::spawn(move || accept_client(listener, writers, Some(tx), block));
-        }
-
-        let mut command = Command::new(&cmd[0]);
-
-        command.args(&cmd[1..]).stdout(Stdio::piped());
-
-        loop {
-            rx.recv().unwrap();
-
-            let child = command.spawn().expect("Failed to spawn");
-
-            let mut stdout = child.stdout.expect("Unable to get output");
-
-            if !transfer_data(&mut stdout, &writers) {
-                return;
-            }
-        }
-    }
+    run(addr, block, cmd);
 }
