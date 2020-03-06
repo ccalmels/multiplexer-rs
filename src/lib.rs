@@ -105,14 +105,14 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 
 pub fn run(addr: &str, block: bool, cmd: Option<Vec<&str>>)
 {
-    let listener = TcpListener::bind(&addr).expect("unable to bind");
+    let listener = TcpListener::bind(addr).expect("unable to bind");
 
     let writers = Arc::new(Mutex::new(vec![]));
 
     match cmd {
         None => { multiplex_stdin(listener, writers, block); },
         Some(cmd) => {
-            let mut command = Command::new(&cmd[0]);
+            let mut command = Command::new(cmd[0]);
 
             command.args(&cmd[1..]).stdout(Stdio::piped());
 
