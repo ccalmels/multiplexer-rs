@@ -91,7 +91,7 @@ fn main() {
         .arg(Arg::with_name("cmd")
              .multiple(true)
              .required(true)
-             .help("commands to run"))
+             .help("command to run"))
         .get_matches();
 
     let addr = matches.value_of("listen").unwrap_or("localhost:1234");
