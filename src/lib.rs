@@ -74,11 +74,9 @@ fn accept_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 fn multiplex_stdin(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
                    block: bool)
 {
-    {
-        let writers = writers.clone();
+    let writers_cloned = writers.clone();
 
-        thread::spawn(move || accept_client(listener, writers, None, block));
-    }
+    thread::spawn(move || accept_client(listener, writers_cloned, None, block));
 
     while transfer_data(&mut std::io::stdin(), &writers) {}
 }
@@ -88,11 +86,9 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 {
     let (tx, rx) = mpsc::channel();
 
-    {
-        let writers = writers.clone();
+    let writers_cloned = writers.clone();
 
-        thread::spawn(move || accept_client(listener, writers, Some(tx), block));
-    }
+    thread::spawn(move || accept_client(listener, writers_cloned, Some(tx), block));
 
     loop {
         rx.recv().unwrap();
