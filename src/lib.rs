@@ -93,13 +93,16 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
     loop {
         rx.recv().unwrap();
 
-        let child = command.spawn().expect("Failed to spawn");
+        let mut child = command.spawn().expect("Failed to spawn");
 
-        let mut stdout = child.stdout.expect("Unable to get output");
+        let mut stdout = child.stdout.take().expect("Unable to get output");
 
         if !transfer_data(&mut stdout, &writers) {
             return;
         }
+
+        child.kill().expect("unable to kill the process");
+        child.wait().expect("unable to wait the process");
     }
 }
 
