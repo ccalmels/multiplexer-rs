@@ -23,11 +23,12 @@ fn transfer_data(input: &mut impl Read,
                     match res {
                         Ok(_) => { true }
                         Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                            eprintln!("would block");
+                            eprintln!("{:?} would block", writer);
                             true
                         }
                         Err(e) => {
-                            eprintln!("unable to send data: {}", e);
+                            eprintln!("{:?} unable to send data: {}",
+                                      writer, e);
                             false
                         }
                     }
@@ -50,7 +51,7 @@ fn accept_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                println!("new client {:?}", stream);
+                eprintln!("new client {:?}", stream);
 
                 stream.set_nonblocking(!block)
                     .expect("set_nonblocking fails");
@@ -95,6 +96,8 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 
         let mut child = command.spawn().expect("Failed to spawn");
 
+        eprintln!("command {:?} spawned", command);
+
         let mut stdout = child.stdout.take().expect("Unable to get output");
 
         if !transfer_data(&mut stdout, &writers) {
@@ -103,6 +106,8 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 
         child.kill().expect("unable to kill the process");
         child.wait().expect("unable to wait the process");
+
+        eprintln!("command {:?} end", command);
     }
 }
 
