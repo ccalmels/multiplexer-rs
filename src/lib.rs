@@ -104,7 +104,7 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
             return;
         }
 
-        child.kill().expect("unable to kill the process");
+        drop(stdout);
         child.wait().expect("unable to wait the process");
 
         eprintln!("command {:?} end", command);
