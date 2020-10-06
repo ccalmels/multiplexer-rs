@@ -6,7 +6,7 @@ use std::sync::mpsc::Sender;
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
 
-fn transfer_data(input: &mut impl Read,
+fn transfer_data(mut input: impl Read,
                  writers: &Arc<Mutex<Vec<TcpStream>>>) -> bool {
     let mut buffer = [0; 4096];
 
@@ -79,7 +79,7 @@ fn multiplex_stdin(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 
     thread::spawn(move || accept_client(listener, writers_cloned, None, block));
 
-    while transfer_data(&mut std::io::stdin(), &writers) {}
+    while transfer_data(std::io::stdin(), &writers) {}
 }
 
 fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
@@ -98,13 +98,12 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 
         eprintln!("command {:?} spawned", command);
 
-        let mut stdout = child.stdout.take().expect("Unable to get output");
+        let stdout = child.stdout.take().expect("Unable to get output");
 
-        if !transfer_data(&mut stdout, &writers) {
+        if !transfer_data(stdout, &writers) {
             return;
         }
 
-        drop(stdout);
         child.wait().expect("unable to wait the process");
 
         eprintln!("command {:?} end", command);
