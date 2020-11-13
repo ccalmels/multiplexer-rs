@@ -6,6 +6,9 @@ use std::sync::mpsc::Sender;
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
 
+extern crate rayon;
+use rayon::prelude::*;
+
 fn transfer_data(mut input: impl Read,
                  writers: &Arc<Mutex<Vec<TcpStream>>>) -> bool {
     let mut buffer = [0; 4096];
@@ -18,7 +21,7 @@ fn transfer_data(mut input: impl Read,
             Ok(n) => {
                 let mut ws = writers.lock().unwrap();
 
-                ws.retain(|mut writer| {
+                let status: Vec<bool> = ws.par_iter().map(|mut writer| {
                     let res = writer.write(&buffer[..n]);
                     match res {
                         Ok(_) => { true }
@@ -32,7 +35,13 @@ fn transfer_data(mut input: impl Read,
                             false
                         }
                     }
-                });
+                }).collect();
+
+                for i in (0..status.len()).rev() {
+                    if !status[i] {
+                        ws.remove(i);
+                    }
+                }
 
                 if ws.is_empty() {
                     return true;
