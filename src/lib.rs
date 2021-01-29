@@ -32,7 +32,7 @@ impl Clients {
     }
 
     pub fn send_to_all(&self, buffer: &[u8]) -> bool {
-        let send_closure = |w| { Clients::send_to_one(w, buffer) };
+        let send_closure = |w| Clients::send_to_one(w, buffer);
         let mut ws = self.writers.lock().unwrap();
         let status: Vec<bool> = if self.is_parallel {
             ws.par_iter().map(send_closure).collect()
