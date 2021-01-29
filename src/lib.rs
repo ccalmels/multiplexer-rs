@@ -61,8 +61,7 @@ impl Clients {
     }
 }
 
-fn transfer_data(mut input: impl Read,
-                 writers: &Arc<Mutex<Vec<TcpStream>>>) -> bool {
+fn transfer_data(mut input: impl Read, clients: &mut Clients) -> bool {
     let mut buffer = [0; 4096];
 
     loop {
@@ -71,31 +70,7 @@ fn transfer_data(mut input: impl Read,
                 return false;
             }
             Ok(n) => {
-                let mut ws = writers.lock().unwrap();
-
-                let status: Vec<bool> = ws.par_iter().map(|mut writer| {
-                    let res = writer.write(&buffer[..n]);
-                    match res {
-                        Ok(_) => { true }
-                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                            eprintln!("{:?} would block", writer);
-                            true
-                        }
-                        Err(e) => {
-                            eprintln!("{:?} unable to send data: {}",
-                                      writer, e);
-                            false
-                        }
-                    }
-                }).collect();
-
-                for i in (0..status.len()).rev() {
-                    if !status[i] {
-                        ws.remove(i);
-                    }
-                }
-
-                if ws.is_empty() {
+                if clients.send_to_all(&buffer[..n]) {
                     return true;
                 }
             }
@@ -107,47 +82,40 @@ fn transfer_data(mut input: impl Read,
     }
 }
 
-fn accept_client(stream: TcpStream, writers: &Arc<Mutex<Vec<TcpStream>>>,
-                 tx: &Option<Sender<i32>>, block: bool) {
+fn accept_client(stream: TcpStream, clients: &mut Clients,
+                 tx: &Option<Sender<i32>>) {
     eprintln!("new client {:?}", stream);
 
-    stream.set_nonblocking(!block).expect("set_nonblocking fails");
-
-    let mut ws = writers.lock().unwrap();
-
-    if ws.is_empty() {
+    if clients.add_client(stream) {
         if let Some(sender) = &tx {
             sender.send(0).unwrap();
         }
     }
-
-    ws.push(stream);
 }
 
-fn listen_client(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
-                 tx: Option<Sender<i32>>, block: bool) -> std::io::Result<()> {
+fn listen_client(listener: TcpListener, mut clients: Clients,
+                 tx: Option<Sender<i32>>) -> std::io::Result<()> {
     for stream in listener.incoming() {
-        accept_client(stream?, &writers, &tx, block);
+        accept_client(stream?, &mut clients, &tx);
     }
     unreachable!();
 }
 
-fn multiplex_stdin(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
-                   block: bool) {
-    let writers_cloned = writers.clone();
+fn multiplex_stdin(listener: TcpListener, mut clients: Clients) {
+    let clients_cloned = clients.clone();
 
-    thread::spawn(move || listen_client(listener, writers_cloned, None, block));
+    thread::spawn(move || listen_client(listener, clients_cloned, None));
 
-    while transfer_data(std::io::stdin(), &writers) {}
+    while transfer_data(std::io::stdin(), &mut clients) {}
 }
 
-fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
-                     block: bool, mut command: Command) {
+fn multiplex_command(listener: TcpListener, mut clients: Clients,
+                     mut command: Command) {
     let (tx, rx) = mpsc::channel();
 
-    let writers_cloned = writers.clone();
+    let clients_cloned = clients.clone();
 
-    thread::spawn(move || listen_client(listener, writers_cloned, Some(tx), block));
+    thread::spawn(move || listen_client(listener, clients_cloned, Some(tx)));
 
     loop {
         rx.recv().unwrap();
@@ -158,7 +126,7 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 
         let stdout = child.stdout.take().expect("Unable to get output");
 
-        if !transfer_data(stdout, &writers) {
+        if !transfer_data(stdout, &mut clients) {
             return;
         }
 
@@ -171,20 +139,19 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
 pub fn run(addr: &str, block: bool, in_parallel: bool, cmd: Option<Vec<&str>>) {
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
-    let writers = Arc::new(Mutex::new(vec![]));
-
-    if !in_parallel {
-        rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
-    }
+    let clients = Clients {
+        writers: Arc::new(Mutex::new(vec![])),
+        is_blocking: block, is_parallel: in_parallel
+    };
 
     match cmd {
-        None => { multiplex_stdin(listener, writers, block); },
+        None => { multiplex_stdin(listener, clients); },
         Some(cmd) => {
             let mut command = Command::new(cmd[0]);
 
             command.args(&cmd[1..]).stdout(Stdio::piped());
 
-            multiplex_command(listener, writers, block, command);
+            multiplex_command(listener, clients, command);
         },
     }
 }
