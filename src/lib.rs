@@ -136,12 +136,12 @@ fn multiplex_command(listener: TcpListener, mut clients: Clients,
     }
 }
 
-pub fn run(addr: &str, block: bool, in_parallel: bool, cmd: Option<Vec<&str>>) {
+pub fn run(addr: &str, block: bool, parallel: bool, cmd: Option<Vec<&str>>) {
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
     let clients = Clients {
         writers: Arc::new(Mutex::new(vec![])),
-        is_blocking: block, is_parallel: in_parallel
+        is_blocking: block, is_parallel: parallel
     };
 
     match cmd {

@@ -28,11 +28,11 @@ fn main() {
 
     let addr = matches.value_of("listen").unwrap_or("localhost:1234");
     let block = matches.is_present("block");
-    let in_parallel = matches.is_present("parallel");
+    let parallel = matches.is_present("parallel");
     let cmd: Option<Vec<&str>> = match matches.values_of("cmd") {
         Some(iterator) => { Some(iterator.collect()) },
         None => { None }
     };
 
-    run(addr, block, in_parallel, cmd);
+    run(addr, block, parallel, cmd);
 }
