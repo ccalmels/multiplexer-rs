@@ -33,7 +33,7 @@ impl Clients {
         }
     }
 
-    pub fn send_to_all(&mut self, buffer: &[u8]) -> bool {
+    pub fn send_to_all(&self, buffer: &[u8]) -> bool {
         let mut ws = self.writers.lock().unwrap();
         let status: Vec<bool>;
 
@@ -51,7 +51,7 @@ impl Clients {
         ws.is_empty()
     }
 
-    pub fn add_client(&mut self, stream: std::net::TcpStream) -> bool {
+    pub fn add_client(&self, stream: std::net::TcpStream) -> bool {
         stream.set_nonblocking(!self.is_blocking).expect("set_nonblocking fails");
 
         let mut ws = self.writers.lock().unwrap();
@@ -61,7 +61,7 @@ impl Clients {
     }
 }
 
-fn transfer_data(mut input: impl Read, clients: &mut Clients) -> bool {
+fn transfer_data(mut input: impl Read, clients: &Clients) -> bool {
     let mut buffer = [0; 4096];
 
     loop {
@@ -82,7 +82,7 @@ fn transfer_data(mut input: impl Read, clients: &mut Clients) -> bool {
     }
 }
 
-fn accept_client(stream: TcpStream, clients: &mut Clients,
+fn accept_client(stream: TcpStream, clients: &Clients,
                  tx: &Option<Sender<i32>>) {
     eprintln!("new client {:?}", stream);
 
@@ -93,23 +93,23 @@ fn accept_client(stream: TcpStream, clients: &mut Clients,
     }
 }
 
-fn listen_client(listener: TcpListener, mut clients: Clients,
+fn listen_client(listener: TcpListener, clients: Clients,
                  tx: Option<Sender<i32>>) -> std::io::Result<()> {
     for stream in listener.incoming() {
-        accept_client(stream?, &mut clients, &tx);
+        accept_client(stream?, &clients, &tx);
     }
     unreachable!();
 }
 
-fn multiplex_stdin(listener: TcpListener, mut clients: Clients) {
+fn multiplex_stdin(listener: TcpListener, clients: Clients) {
     let clients_cloned = clients.clone();
 
     thread::spawn(move || listen_client(listener, clients_cloned, None));
 
-    while transfer_data(std::io::stdin(), &mut clients) {}
+    while transfer_data(std::io::stdin(), &clients) {}
 }
 
-fn multiplex_command(listener: TcpListener, mut clients: Clients,
+fn multiplex_command(listener: TcpListener, clients: Clients,
                      mut command: Command) {
     let (tx, rx) = mpsc::channel();
 
@@ -126,7 +126,7 @@ fn multiplex_command(listener: TcpListener, mut clients: Clients,
 
         let stdout = child.stdout.take().expect("Unable to get output");
 
-        if !transfer_data(stdout, &mut clients) {
+        if !transfer_data(stdout, &clients) {
             return;
         }
 
