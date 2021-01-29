@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::thread;
 use std::io::{Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -18,37 +17,33 @@ struct Clients {
 }
 
 impl Clients {
-    pub fn send_to_one(writer: &mut (impl Write + Debug), buffer: &[u8]) -> bool {
-        match writer.write(buffer) {
+    pub fn send_to_one(mut stream: &std::net::TcpStream, buffer: &[u8]) -> bool {
+        match stream.write(buffer) {
             Ok(_) => { true }
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                eprintln!("{:?} would block", writer);
+                eprintln!("{:?} would block", stream);
                 true
             }
             Err(e) => {
-                eprintln!("{:?} unable to send data: {}",
-                          writer, e);
+                eprintln!("{:?} unable to send data: {}", stream, e);
                 false
             }
         }
     }
 
     pub fn send_to_all(&self, buffer: &[u8]) -> bool {
+        let send_closure = |w| { Clients::send_to_one(w, buffer) };
         let mut ws = self.writers.lock().unwrap();
-        let status: Vec<bool>;
-
-        if self.is_parallel {
-            status = ws.par_iter().map(
-                |mut w| Clients::send_to_one(&mut w, buffer)).collect();
+        let status: Vec<bool> = if self.is_parallel {
+            ws.par_iter().map(send_closure).collect()
         } else {
-            status = ws.iter().map(
-                |mut w| Clients::send_to_one(&mut w, buffer)).collect();
-        }
+            ws.iter().map(send_closure).collect()
+        };
         let mut i = 0;
 
         ws.retain(|_| (status[i], i += 1).0);
 
-        ws.is_empty()
+        !ws.is_empty()
     }
 
     pub fn add_client(&self, stream: std::net::TcpStream) -> bool {
@@ -70,7 +65,7 @@ fn transfer_data(mut input: impl Read, clients: &Clients) -> bool {
                 return false;
             }
             Ok(n) => {
-                if clients.send_to_all(&buffer[..n]) {
+                if !clients.send_to_all(&buffer[..n]) {
                     return true;
                 }
             }
