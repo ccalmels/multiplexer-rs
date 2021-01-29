@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::thread;
 use std::io::{Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -8,6 +9,57 @@ use std::process::{Command, Stdio};
 
 extern crate rayon;
 use rayon::prelude::*;
+
+#[derive(Clone)]
+struct Clients {
+    writers: Arc<Mutex<Vec<TcpStream>>>,
+    is_parallel: bool,
+    is_blocking: bool,
+}
+
+impl Clients {
+    pub fn send_to_one(writer: &mut (impl Write + Debug), buffer: &[u8]) -> bool {
+        match writer.write(buffer) {
+            Ok(_) => { true }
+            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                eprintln!("{:?} would block", writer);
+                true
+            }
+            Err(e) => {
+                eprintln!("{:?} unable to send data: {}",
+                          writer, e);
+                false
+            }
+        }
+    }
+
+    pub fn send_to_all(&mut self, buffer: &[u8]) -> bool {
+        let mut ws = self.writers.lock().unwrap();
+        let status: Vec<bool>;
+
+        if self.is_parallel {
+            status = ws.par_iter().map(
+                |mut w| Clients::send_to_one(&mut w, buffer)).collect();
+        } else {
+            status = ws.iter().map(
+                |mut w| Clients::send_to_one(&mut w, buffer)).collect();
+        }
+        let mut i = 0;
+
+        ws.retain(|_| (status[i], i += 1).0);
+
+        ws.is_empty()
+    }
+
+    pub fn add_client(&mut self, stream: std::net::TcpStream) -> bool {
+        stream.set_nonblocking(!self.is_blocking).expect("set_nonblocking fails");
+
+        let mut ws = self.writers.lock().unwrap();
+
+        ws.push(stream);
+        ws.len() == 1
+    }
+}
 
 fn transfer_data(mut input: impl Read,
                  writers: &Arc<Mutex<Vec<TcpStream>>>) -> bool {
@@ -116,10 +168,14 @@ fn multiplex_command(listener: TcpListener, writers: Arc<Mutex<Vec<TcpStream>>>,
     }
 }
 
-pub fn run(addr: &str, block: bool, cmd: Option<Vec<&str>>) {
+pub fn run(addr: &str, block: bool, in_parallel: bool, cmd: Option<Vec<&str>>) {
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
     let writers = Arc::new(Mutex::new(vec![]));
+
+    if !in_parallel {
+        rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
+    }
 
     match cmd {
         None => { multiplex_stdin(listener, writers, block); },
