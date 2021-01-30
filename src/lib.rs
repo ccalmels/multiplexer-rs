@@ -12,6 +12,7 @@ use rayon::prelude::*;
 #[derive(Clone)]
 struct Clients {
     writers: Arc<Mutex<Vec<TcpStream>>>,
+    is_parallel: bool,
     is_blocking: bool,
 }
 
@@ -33,7 +34,11 @@ impl Clients {
     pub fn send_to_all(&self, buffer: &[u8]) -> bool {
         let send_closure = |w| Clients::send_to_one(w, buffer);
         let mut ws = self.writers.lock().unwrap();
-        let status: Vec<bool> = ws.par_iter().map(send_closure).collect();
+        let status: Vec<bool> = if self.is_parallel {
+            ws.par_iter().map(send_closure).collect()
+        } else {
+            ws.iter().map(send_closure).collect()
+        };
         let mut i = 0;
 
         ws.retain(|_| (status[i], i += 1).0);
@@ -126,12 +131,12 @@ fn multiplex_command(listener: TcpListener, clients: Clients,
     }
 }
 
-pub fn run(addr: &str, block: bool, cmd: Option<Vec<&str>>) {
+pub fn run(addr: &str, block: bool, parallel: bool, cmd: Option<Vec<&str>>) {
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
     let clients = Clients {
         writers: Arc::new(Mutex::new(vec![])),
-        is_blocking: block,
+        is_blocking: block, is_parallel: parallel
     };
 
     match cmd {
