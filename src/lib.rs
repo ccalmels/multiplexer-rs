@@ -1,10 +1,10 @@
-use std::thread;
-use std::io::{Read, Write, ErrorKind};
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc;
-use std::sync::mpsc::Sender;
+use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 extern crate rayon;
 use rayon::prelude::*;
@@ -19,7 +19,7 @@ struct Clients {
 impl Clients {
     pub fn send_to_one(mut stream: &std::net::TcpStream, buffer: &[u8]) -> bool {
         match stream.write(buffer) {
-            Ok(_) => { true }
+            Ok(_) => true,
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
                 eprintln!("{:?} would block", stream);
                 true
@@ -47,7 +47,9 @@ impl Clients {
     }
 
     pub fn add_client(&self, stream: std::net::TcpStream) -> bool {
-        stream.set_nonblocking(!self.is_blocking).expect("set_nonblocking fails");
+        stream
+            .set_nonblocking(!self.is_blocking)
+            .expect("set_nonblocking fails");
 
         let mut ws = self.writers.lock().unwrap();
 
@@ -77,8 +79,7 @@ fn transfer_data(mut input: impl Read, clients: &Clients) -> bool {
     }
 }
 
-fn accept_client(stream: TcpStream, clients: &Clients,
-                 tx: &Option<Sender<i32>>) {
+fn accept_client(stream: TcpStream, clients: &Clients, tx: &Option<Sender<i32>>) {
     eprintln!("new client {:?}", stream);
 
     if clients.add_client(stream) {
@@ -88,8 +89,11 @@ fn accept_client(stream: TcpStream, clients: &Clients,
     }
 }
 
-fn listen_client(listener: TcpListener, clients: Clients,
-                 tx: Option<Sender<i32>>) -> std::io::Result<()> {
+fn listen_client(
+    listener: TcpListener,
+    clients: Clients,
+    tx: Option<Sender<i32>>,
+) -> std::io::Result<()> {
     for stream in listener.incoming() {
         accept_client(stream?, &clients, &tx);
     }
@@ -104,8 +108,7 @@ fn multiplex_stdin(listener: TcpListener, clients: Clients) {
     while transfer_data(std::io::stdin(), &clients) {}
 }
 
-fn multiplex_command(listener: TcpListener, clients: Clients,
-                     mut command: Command) {
+fn multiplex_command(listener: TcpListener, clients: Clients, mut command: Command) {
     let (tx, rx) = mpsc::channel();
 
     let clients_cloned = clients.clone();
@@ -136,17 +139,20 @@ pub fn run(addr: &str, block: bool, parallel: bool, cmd: Option<Vec<&str>>) {
 
     let clients = Clients {
         writers: Arc::new(Mutex::new(vec![])),
-        is_blocking: block, is_parallel: parallel
+        is_blocking: block,
+        is_parallel: parallel,
     };
 
     match cmd {
-        None => { multiplex_stdin(listener, clients); },
+        None => {
+            multiplex_stdin(listener, clients);
+        }
         Some(cmd) => {
             let mut command = Command::new(cmd[0]);
 
             command.args(&cmd[1..]).stdout(Stdio::piped());
 
             multiplex_command(listener, clients, command);
-        },
+        }
     }
 }
