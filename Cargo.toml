@@ -1,9 +1,10 @@
 [package]
 name = "multiplexer-rs"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Clement Calmels <clement.calmels@free.fr>"]
 edition = "2018"
+description = "IO Multiplexer"
 
 [dependencies]
-clap = "~2.27.0"
-rayon = "1.5"
+clap = { version = "~4.0", features = ["derive"]}
+rayon = "~1.5"
