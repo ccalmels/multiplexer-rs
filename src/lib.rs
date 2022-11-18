@@ -134,7 +134,7 @@ fn multiplex_command(listener: TcpListener, clients: Clients, mut command: Comma
     }
 }
 
-pub fn run(addr: &str, block: bool, parallel: bool, cmd: Option<Vec<String>>) {
+pub fn run(addr: &str, block: bool, parallel: bool, cmd: Vec<String>) {
     let listener = TcpListener::bind(addr).expect("unable to bind");
 
     let clients = Clients {
@@ -143,16 +143,13 @@ pub fn run(addr: &str, block: bool, parallel: bool, cmd: Option<Vec<String>>) {
         is_parallel: parallel,
     };
 
-    match cmd {
-        None => {
-            multiplex_stdin(listener, clients);
-        }
-        Some(cmd) => {
-            let mut command = Command::new(&cmd[0]);
+    if cmd.len() == 0 {
+        multiplex_stdin(listener, clients);
+    } else {
+        let mut command = Command::new(&cmd[0]);
 
-            command.args(&cmd[1..]).stdout(Stdio::piped());
+        command.args(&cmd[1..]).stdout(Stdio::piped());
 
-            multiplex_command(listener, clients, command);
-        }
+        multiplex_command(listener, clients, command);
     }
 }

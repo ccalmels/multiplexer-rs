@@ -18,7 +18,7 @@ struct Args {
     #[arg(short, long, help = "make parallel writing to client")]
     parallel: bool,
     #[arg(trailing_var_arg = true)]
-    cmd: Option<Vec<String>>,
+    cmd: Vec<String>,
 }
 
 fn main() {
