@@ -143,7 +143,7 @@ pub fn run(addr: &str, block: bool, parallel: bool, cmd: Vec<String>) {
         is_parallel: parallel,
     };
 
-    if cmd.len() == 0 {
+    if cmd.is_empty() {
         multiplex_stdin(listener, clients);
     } else {
         let mut command = Command::new(&cmd[0]);
